@@ -177,7 +177,7 @@ static void com_write_dimension(zend_object *object, zval *offset, zval *value)
 	}
 }
 
-static zval *com_get_property_ptr_ptr(zval *object, zval *member, int type, void **cache_slot)
+static zval *com_get_property_ptr_ptr(zend_object *object, zend_string *member, int type, void **cache_slot)
 {
 	return NULL;
 }
@@ -203,18 +203,19 @@ static int com_property_exists(zend_object *object, zend_string *member, int che
 
 static int com_dimension_exists(zend_object *object, zval *member, int check_empty)
 {
-	php_error_docref(NULL, E_WARNING, "Operation not yet supported on a COM object");
+	/* TODO Add support */
+	zend_throw_error(NULL, "Cannot check dimension on a COM object");
 	return 0;
 }
 
 static void com_property_delete(zend_object *object, zend_string *member, void **cache_slot)
 {
-	php_error_docref(NULL, E_WARNING, "Cannot delete properties from a COM object");
+	zend_throw_error(NULL, "Cannot delete properties from a COM object");
 }
 
 static void com_dimension_delete(zend_object *object, zval *offset)
 {
-	php_error_docref(NULL, E_WARNING, "Cannot delete properties from a COM object");
+	zend_throw_error(NULL, "Cannot delete dimension from a COM object");
 }
 
 static HashTable *com_properties_get(zend_object *object)
@@ -224,10 +225,10 @@ static HashTable *com_properties_get(zend_object *object)
 	 * infinite recursion when the hash is displayed via var_dump().
 	 * Perhaps it is best to leave it un-implemented.
 	 */
-	return &zend_empty_array;
+	return (HashTable *) &zend_empty_array;
 }
 
-static HashTable *com_get_gc(zval *object, zval **table, int *n)
+static HashTable *com_get_gc(zend_object *object, zval **table, int *n)
 {
 	*table = NULL;
 	*n = 0;

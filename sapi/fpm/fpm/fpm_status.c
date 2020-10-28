@@ -171,6 +171,9 @@ int fpm_status_handle_request(void) /* {{{ */
 		fpm_request_executing();
 
 		scoreboard_p = fpm_scoreboard_get();
+		if (scoreboard_p->shared) {
+			scoreboard_p = scoreboard_p->shared;
+		}
 		if (!scoreboard_p) {
 			zlog(ZLOG_ERROR, "status: unable to find or access status shared memory");
 			SG(sapi_headers).http_response_code = 500;
@@ -488,7 +491,7 @@ int fpm_status_handle_request(void) /* {{{ */
 					if (!encode) {
 						query_string = proc.query_string;
 					} else {
-						tmp_query_string = php_escape_html_entities_ex((unsigned char *)proc.query_string, strlen(proc.query_string), 1, ENT_HTML_IGNORE_ERRORS & ENT_COMPAT, NULL, /* double_encode */ 1, /* quiet */ 0);
+						tmp_query_string = php_escape_html_entities_ex((const unsigned char *) proc.query_string, strlen(proc.query_string), 1, ENT_HTML_IGNORE_ERRORS & ENT_COMPAT, NULL, /* double_encode */ 1, /* quiet */ 0);
 						query_string = ZSTR_VAL(tmp_query_string);
 					}
 				}

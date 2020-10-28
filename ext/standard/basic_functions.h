@@ -47,8 +47,8 @@ PHP_RSHUTDOWN_FUNCTION(user_filters);
 PHP_RSHUTDOWN_FUNCTION(browscap);
 
 /* Left for BC (not binary safe!) */
-PHPAPI int _php_error_log(int opt_err, char *message, char *opt, char *headers);
-PHPAPI int _php_error_log_ex(int opt_err, char *message, size_t message_len, char *opt, char *headers);
+PHPAPI int _php_error_log(int opt_err, const char *message, const char *opt, const char *headers);
+PHPAPI int _php_error_log_ex(int opt_err, const char *message, size_t message_len, const char *opt, const char *headers);
 PHPAPI int php_prefix_varname(zval *result, zend_string *prefix, const char *var_name, size_t var_name_len, zend_bool add_underscore);
 
 #define MT_N (624)
@@ -60,16 +60,12 @@ typedef int32_t php_int32;
 typedef struct _php_basic_globals {
 	HashTable *user_shutdown_function_names;
 	HashTable putenv_ht;
-	zval  strtok_zval;
-	char *strtok_string;
+	zend_string *strtok_string;
 	zend_string *ctype_string; /* current LC_CTYPE locale (or NULL for 'C') */
 	zend_bool locale_changed;   /* locale was changed and has to be restored */
 	char *strtok_last;
 	char strtok_table[256];
-	zend_ulong strtok_len;
-	char str_ebuf[40];
-	zend_fcall_info array_walk_fci;
-	zend_fcall_info_cache array_walk_fci_cache;
+	size_t strtok_len;
 	zend_fcall_info user_compare_fci;
 	zend_fcall_info_cache user_compare_fci_cache;
 	zend_llist *user_tick_functions;
@@ -98,7 +94,6 @@ typedef struct _php_basic_globals {
 	char *syslog_device;
 
 	/* var.c */
-	zend_class_entry *incomplete_class;
 	unsigned serialize_lock; /* whether to use the locally supplied var_hash instead (__sleep/__wakeup) */
 	struct {
 		struct php_serialize_data *data;
@@ -146,13 +141,14 @@ PHPAPI double php_get_nan(void);
 PHPAPI double php_get_inf(void);
 
 typedef struct _php_shutdown_function_entry {
+	zval function_name;
 	zval *arguments;
 	int arg_count;
 } php_shutdown_function_entry;
 
-PHPAPI extern zend_bool register_user_shutdown_function(char *function_name, size_t function_len, php_shutdown_function_entry *shutdown_function_entry);
-PHPAPI extern zend_bool remove_user_shutdown_function(char *function_name, size_t function_len);
-PHPAPI extern zend_bool append_user_shutdown_function(php_shutdown_function_entry shutdown_function_entry);
+PHPAPI extern zend_bool register_user_shutdown_function(const char *function_name, size_t function_len, php_shutdown_function_entry *shutdown_function_entry);
+PHPAPI extern zend_bool remove_user_shutdown_function(const char *function_name, size_t function_len);
+PHPAPI extern zend_bool append_user_shutdown_function(php_shutdown_function_entry *shutdown_function_entry);
 
 PHPAPI void php_call_shutdown_functions(void);
 PHPAPI void php_free_shutdown_functions(void);

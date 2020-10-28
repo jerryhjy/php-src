@@ -1,7 +1,5 @@
 --TEST--
 json_last_error_msg() failures
---SKIPIF--
-<?php if (!extension_loaded("json")) print "skip"; ?>
 --FILE--
 <?php
 
@@ -16,4 +14,4 @@ try {
 ?>
 --EXPECT--
 string(8) "No error"
-json_last_error_msg() expects exactly 0 parameters, 1 given
+json_last_error_msg() expects exactly 0 arguments, 1 given

@@ -2,9 +2,9 @@
 Bug #45705 test #2 (imap rfc822_parse_adrlist() modifies passed address parameter)
 --SKIPIF--
 <?php
-	if (!extension_loaded("imap")) {
-		die("skip imap extension not available");
-	}
+    if (!extension_loaded("imap")) {
+        die("skip imap extension not available");
+    }
 ?>
 --FILE--
 <?php
@@ -18,7 +18,7 @@ $envelope = array('return_path' => 'John Doe <john@example.com>',
 );
 
 var_dump($envelope);
-imap_mail_compose($envelope, array(1 => array()));
+imap_mail_compose($envelope, [1 => ['cc' => 'Steve Doe <steve@example.com>',]]);
 var_dump($envelope);
 
 ?>

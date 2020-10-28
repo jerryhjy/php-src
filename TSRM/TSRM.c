@@ -116,7 +116,7 @@ TSRM_TLS uint8_t in_main_thread = 0;
 TSRM_TLS uint8_t is_thread_shutdown = 0;
 
 /* Startup TSRM (call once for the entire process) */
-TSRM_API int tsrm_startup(int expected_threads, int expected_resources, int debug_level, char *debug_filename)
+TSRM_API int tsrm_startup(int expected_threads, int expected_resources, int debug_level, const char *debug_filename)
 {/*{{{*/
 #ifdef TSRM_WIN32
 	tls_key = TlsAlloc();
@@ -228,11 +228,11 @@ TSRM_API void tsrm_shutdown(void)
 
 /* {{{ */
 /* environ lock api */
-TSRM_API void tsrm_env_lock() {
+TSRM_API void tsrm_env_lock(void) {
     tsrm_mutex_lock(tsrm_env_mutex);
 }
 
-TSRM_API void tsrm_env_unlock() {
+TSRM_API void tsrm_env_unlock(void) {
     tsrm_mutex_unlock(tsrm_env_mutex);
 } /* }}} */
 
@@ -698,7 +698,7 @@ int tsrm_error(int level, const char *format, ...)
 #endif
 
 
-void tsrm_error_set(int level, char *debug_filename)
+void tsrm_error_set(int level, const char *debug_filename)
 {/*{{{*/
 	tsrm_error_level = level;
 

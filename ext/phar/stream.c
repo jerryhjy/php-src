@@ -223,13 +223,10 @@ static php_stream * phar_wrapper_open_url(php_stream_wrapper *wrapper, const cha
 				idata->internal_file->flags |= Z_LVAL_P(pzoption);
 			}
 			if ((pzoption = zend_hash_str_find(pharcontext, "metadata", sizeof("metadata")-1)) != NULL) {
-				if (Z_TYPE(idata->internal_file->metadata) != IS_UNDEF) {
-					zval_ptr_dtor(&idata->internal_file->metadata);
-					ZVAL_UNDEF(&idata->internal_file->metadata);
-				}
+				phar_metadata_tracker_free(&idata->internal_file->metadata_tracker, idata->internal_file->is_persistent);
 
 				metadata = pzoption;
-				ZVAL_COPY_DEREF(&idata->internal_file->metadata, metadata);
+				ZVAL_COPY_DEREF(&idata->internal_file->metadata_tracker.val, metadata);
 				idata->phar->is_modified = 1;
 			}
 		}
@@ -318,7 +315,7 @@ idata_error:
 		return NULL;
 	}
 
-	if (!PHAR_G(cwd_init) && options & STREAM_OPEN_FOR_INCLUDE) {
+	if (!PHAR_G(cwd_init) && (options & STREAM_OPEN_FOR_INCLUDE)) {
 		char *entry = idata->internal_file->filename, *cwd;
 
 		PHAR_G(cwd_init) = 1;
@@ -846,7 +843,7 @@ static int phar_wrapper_rename(php_stream_wrapper *wrapper, const char *url_from
 		/* mark the old one for deletion */
 		entry->is_deleted = 1;
 		entry->fp = NULL;
-		ZVAL_UNDEF(&entry->metadata);
+		ZVAL_UNDEF(&entry->metadata_tracker.val);
 		entry->link = entry->tmp = NULL;
 		source = entry;
 

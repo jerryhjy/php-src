@@ -28,8 +28,7 @@
 #include "url.h"
 #include "file.h"
 
-/* {{{ free_url
- */
+/* {{{ free_url */
 PHPAPI void php_url_free(php_url *theurl)
 {
 	if (theurl->scheme)
@@ -50,8 +49,7 @@ PHPAPI void php_url_free(php_url *theurl)
 }
 /* }}} */
 
-/* {{{ php_replace_controlchars
- */
+/* {{{ php_replace_controlchars_ex */
 PHPAPI char *php_replace_controlchars_ex(char *str, size_t len)
 {
 	unsigned char *s = (unsigned char *)str;
@@ -83,8 +81,18 @@ PHPAPI php_url *php_url_parse(char const *str)
 	return php_url_parse_ex(str, strlen(str));
 }
 
-/* {{{ php_url_parse
- */
+static const char *binary_strcspn(const char *s, const char *e, const char *chars) {
+	while (*chars) {
+		const char *p = memchr(s, *chars, e - s);
+		if (p) {
+			e = p;
+		}
+		chars++;
+	}
+	return e;
+}
+
+/* {{{ php_url_parse */
 PHPAPI php_url *php_url_parse_ex(char const *str, size_t length)
 {
 	char port_buf[6];
@@ -101,7 +109,7 @@ PHPAPI php_url *php_url_parse_ex(char const *str, size_t length)
 		while (p < e) {
 			/* scheme = 1*[ lowalpha | digit | "+" | "-" | "." ] */
 			if (!isalpha(*p) && !isdigit(*p) && *p != '+' && *p != '.' && *p != '-') {
-				if (e + 1 < ue && e < s + strcspn(s, "?#")) {
+				if (e + 1 < ue && e < binary_strcspn(s, ue, "?#")) {
 					goto parse_port;
 				} else if (s + 1 < ue && *s == '/' && *(s + 1) == '/') { /* relative-scheme URL */
 					s += 2;
@@ -175,10 +183,11 @@ PHPAPI php_url *php_url_parse_ex(char const *str, size_t length)
 
 		if (pp - p > 0 && pp - p < 6 && (pp == ue || *pp == '/')) {
 			zend_long port;
+			char *end;
 			memcpy(port_buf, p, (pp - p));
 			port_buf[pp - p] = '\0';
-			port = ZEND_STRTOL(port_buf, NULL, 10);
-			if (port > 0 && port <= 65535) {
+			port = ZEND_STRTOL(port_buf, &end, 10);
+			if (port >= 0 && port <= 65535 && end != port_buf) {
 				ret->port = (unsigned short) port;
 				if (s + 1 < ue && *s == '/' && *(s + 1) == '/') { /* relative-scheme URL */
 				    s += 2;
@@ -201,18 +210,8 @@ PHPAPI php_url *php_url_parse_ex(char const *str, size_t length)
 		goto just_path;
 	}
 
-	parse_host:
-	/* Binary-safe strcspn(s, "/?#") */
-	e = ue;
-	if ((p = memchr(s, '/', e - s))) {
-		e = p;
-	}
-	if ((p = memchr(s, '?', e - s))) {
-		e = p;
-	}
-	if ((p = memchr(s, '#', e - s))) {
-		e = p;
-	}
+parse_host:
+	e = binary_strcspn(s, ue, "/?#");
 
 	/* check for login and password */
 	if ((p = zend_memrchr(s, '@', (e-s)))) {
@@ -249,10 +248,11 @@ PHPAPI php_url *php_url_parse_ex(char const *str, size_t length)
 				return NULL;
 			} else if (e - p > 0) {
 				zend_long port;
+				char *end;
 				memcpy(port_buf, p, (e - p));
 				port_buf[e - p] = '\0';
-				port = ZEND_STRTOL(port_buf, NULL, 10);
-				if (port > 0 && port <= 65535) {
+				port = ZEND_STRTOL(port_buf, &end, 10);
+				if (port >= 0 && port <= 65535 && end != port_buf) {
 					ret->port = (unsigned short)port;
 				} else {
 					php_url_free(ret);
@@ -316,8 +316,7 @@ PHPAPI php_url *php_url_parse_ex(char const *str, size_t length)
 }
 /* }}} */
 
-/* {{{ proto mixed parse_url(string url, [int url_component])
-   Parse a URL and return its components */
+/* {{{ Parse a URL and return its components */
 PHP_FUNCTION(parse_url)
 {
 	char *str;
@@ -412,8 +411,7 @@ done:
 }
 /* }}} */
 
-/* {{{ php_htoi
- */
+/* {{{ php_htoi */
 static int php_htoi(char *s)
 {
 	int value;
@@ -446,7 +444,7 @@ static int php_htoi(char *s)
    For added safety, we only leave -_. unencoded.
  */
 
-static unsigned char hexchars[] = "0123456789ABCDEF";
+static const unsigned char hexchars[] = "0123456789ABCDEF";
 
 static zend_always_inline zend_string *php_url_encode_impl(const char *s, size_t len, zend_bool raw) /* {{{ */ {
 	register unsigned char c;
@@ -545,16 +543,14 @@ static zend_always_inline zend_string *php_url_encode_impl(const char *s, size_t
 }
 /* }}} */
 
-/* {{{ php_url_encode
- */
+/* {{{ php_url_encode */
 PHPAPI zend_string *php_url_encode(char const *s, size_t len)
 {
 	return php_url_encode_impl(s, len, 0);
 }
 /* }}} */
 
-/* {{{ proto string urlencode(string str)
-   URL-encodes string */
+/* {{{ URL-encodes string */
 PHP_FUNCTION(urlencode)
 {
 	zend_string *in_str;
@@ -567,8 +563,7 @@ PHP_FUNCTION(urlencode)
 }
 /* }}} */
 
-/* {{{ proto string urldecode(string str)
-   Decodes URL-encoded string */
+/* {{{ Decodes URL-encoded string */
 PHP_FUNCTION(urldecode)
 {
 	zend_string *in_str, *out_str;
@@ -584,8 +579,7 @@ PHP_FUNCTION(urldecode)
 }
 /* }}} */
 
-/* {{{ php_url_decode
- */
+/* {{{ php_url_decode */
 PHPAPI size_t php_url_decode(char *str, size_t len)
 {
 	char *dest = str;
@@ -611,16 +605,14 @@ PHPAPI size_t php_url_decode(char *str, size_t len)
 }
 /* }}} */
 
-/* {{{ php_raw_url_encode
- */
+/* {{{ php_raw_url_encode */
 PHPAPI zend_string *php_raw_url_encode(char const *s, size_t len)
 {
 	return php_url_encode_impl(s, len, 1);
 }
 /* }}} */
 
-/* {{{ proto string rawurlencode(string str)
-   URL-encodes string */
+/* {{{ URL-encodes string */
 PHP_FUNCTION(rawurlencode)
 {
 	zend_string *in_str;
@@ -633,8 +625,7 @@ PHP_FUNCTION(rawurlencode)
 }
 /* }}} */
 
-/* {{{ proto string rawurldecode(string str)
-   Decodes URL-encodes string */
+/* {{{ Decodes URL-encodes string */
 PHP_FUNCTION(rawurldecode)
 {
 	zend_string *in_str, *out_str;
@@ -650,8 +641,7 @@ PHP_FUNCTION(rawurldecode)
 }
 /* }}} */
 
-/* {{{ php_raw_url_decode
- */
+/* {{{ php_raw_url_decode */
 PHPAPI size_t php_raw_url_decode(char *str, size_t len)
 {
 	char *dest = str;
@@ -674,22 +664,21 @@ PHPAPI size_t php_raw_url_decode(char *str, size_t len)
 }
 /* }}} */
 
-/* {{{ proto array|false get_headers(string url[, int format[, resource context]])
-   fetches all the headers sent by the server in response to a HTTP request */
+/* {{{ fetches all the headers sent by the server in response to a HTTP request */
 PHP_FUNCTION(get_headers)
 {
 	char *url;
 	size_t url_len;
 	php_stream *stream;
 	zval *prev_val, *hdr = NULL;
-	zend_long format = 0;
+	zend_bool format = 0;
 	zval *zcontext = NULL;
 	php_stream_context *context;
 
 	ZEND_PARSE_PARAMETERS_START(1, 3)
 		Z_PARAM_PATH(url, url_len)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(format)
+		Z_PARAM_BOOL(format)
 		Z_PARAM_RESOURCE_OR_NULL(zcontext)
 	ZEND_PARSE_PARAMETERS_END();
 

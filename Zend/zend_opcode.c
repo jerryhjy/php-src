@@ -61,8 +61,9 @@ void init_op_array(zend_op_array *op_array, zend_uchar type, int initial_ops_siz
 	op_array->T = 0;
 
 	op_array->function_name = NULL;
-	op_array->filename = zend_get_compiled_filename();
+	op_array->filename = zend_string_copy(zend_get_compiled_filename());
 	op_array->doc_comment = NULL;
+	op_array->attributes = NULL;
 
 	op_array->arg_info = NULL;
 	op_array->num_args = 0;
@@ -317,6 +318,9 @@ ZEND_API void destroy_zend_class(zval *zv)
 					if (prop_info->doc_comment) {
 						zend_string_release_ex(prop_info->doc_comment, 0);
 					}
+					if (prop_info->attributes) {
+						zend_hash_release(prop_info->attributes);
+					}
 					zend_type_release(prop_info->type, /* persistent */ 0);
 				}
 			} ZEND_HASH_FOREACH_END();
@@ -331,6 +335,9 @@ ZEND_API void destroy_zend_class(zval *zv)
 						zval_ptr_dtor_nogc(&c->value);
 						if (c->doc_comment) {
 							zend_string_release_ex(c->doc_comment, 0);
+						}
+						if (c->attributes) {
+							zend_hash_release(c->attributes);
 						}
 					}
 				} ZEND_HASH_FOREACH_END();
@@ -347,8 +354,12 @@ ZEND_API void destroy_zend_class(zval *zv)
 				}
 				efree(ce->interfaces);
 			}
+			zend_string_release_ex(ce->info.user.filename, 0);
 			if (ce->info.user.doc_comment) {
 				zend_string_release_ex(ce->info.user.doc_comment, 0);
+			}
+			if (ce->attributes) {
+				zend_hash_release(ce->attributes);
 			}
 
 			if (ce->num_traits > 0) {
@@ -401,6 +412,9 @@ ZEND_API void destroy_zend_class(zval *zv)
 						if (c->doc_comment) {
 							zend_string_release_ex(c->doc_comment, 1);
 						}
+						if (c->attributes) {
+							zend_hash_release(c->attributes);
+						}
 					}
 					free(c);
 				} ZEND_HASH_FOREACH_END();
@@ -414,6 +428,9 @@ ZEND_API void destroy_zend_class(zval *zv)
 			}
 			if (ce->properties_info_table) {
 				free(ce->properties_info_table);
+			}
+			if (ce->attributes) {
+				zend_hash_release(ce->attributes);
 			}
 			free(ce);
 			break;
@@ -480,8 +497,12 @@ ZEND_API void destroy_op_array(zend_op_array *op_array)
 	}
 	efree(op_array->opcodes);
 
+	zend_string_release_ex(op_array->filename, 0);
 	if (op_array->doc_comment) {
 		zend_string_release_ex(op_array->doc_comment, 0);
+	}
+	if (op_array->attributes) {
+		zend_hash_release(op_array->attributes);
 	}
 	if (op_array->live_range) {
 		efree(op_array->live_range);
@@ -612,7 +633,7 @@ static void emit_live_range(
 		case ZEND_ADD_ARRAY_ELEMENT:
 		case ZEND_ADD_ARRAY_UNPACK:
 		case ZEND_ROPE_ADD:
-			ZEND_ASSERT(0);
+			ZEND_UNREACHABLE();
 			return;
 		/* Result is boolean, it doesn't have to be destroyed. */
 		case ZEND_JMPZ_EX:
@@ -744,7 +765,9 @@ static zend_bool keeps_op1_alive(zend_op *opline) {
 	/* These opcodes don't consume their OP1 operand,
 	 * it is later freed by something else. */
 	if (opline->opcode == ZEND_CASE
+	 || opline->opcode == ZEND_CASE_STRICT
 	 || opline->opcode == ZEND_SWITCH_LONG
+	 || opline->opcode == ZEND_MATCH
 	 || opline->opcode == ZEND_FETCH_LIST_R
 	 || opline->opcode == ZEND_COPY_TMP) {
 		return 1;
@@ -886,12 +909,12 @@ ZEND_API void zend_recalc_live_ranges(
 	zend_calc_live_ranges(op_array, needs_live_range);
 }
 
-ZEND_API int pass_two(zend_op_array *op_array)
+ZEND_API void pass_two(zend_op_array *op_array)
 {
 	zend_op *opline, *end;
 
 	if (!ZEND_USER_CODE(op_array->type)) {
-		return 0;
+		return;
 	}
 	if (CG(compiler_options) & ZEND_COMPILE_EXTENDED_STMT) {
 		zend_update_extended_stmts(op_array);
@@ -987,6 +1010,7 @@ ZEND_API int pass_two(zend_op_array *op_array)
 			case ZEND_COALESCE:
 			case ZEND_FE_RESET_R:
 			case ZEND_FE_RESET_RW:
+			case ZEND_JMP_NULL:
 				ZEND_PASS_TWO_UPDATE_JMP_TARGET(op_array, opline, opline->op2);
 				break;
 			case ZEND_ASSERT_CHECK:
@@ -1020,6 +1044,7 @@ ZEND_API int pass_two(zend_op_array *op_array)
 				break;
 			case ZEND_SWITCH_LONG:
 			case ZEND_SWITCH_STRING:
+			case ZEND_MATCH:
 			{
 				/* absolute indexes to relative offsets */
 				HashTable *jumptable = Z_ARRVAL_P(CT_CONSTANT(opline->op2));
@@ -1051,7 +1076,7 @@ ZEND_API int pass_two(zend_op_array *op_array)
 
 	zend_calc_live_ranges(op_array, NULL);
 
-	return 0;
+	return;
 }
 
 ZEND_API unary_op_type get_unary_op(int opcode)
@@ -1089,6 +1114,7 @@ ZEND_API binary_op_type get_binary_op(int opcode)
 		case ZEND_CONCAT:
 			return (binary_op_type) concat_function;
 		case ZEND_IS_IDENTICAL:
+		case ZEND_CASE_STRICT:
 			return (binary_op_type) is_identical_function;
 		case ZEND_IS_NOT_IDENTICAL:
 			return (binary_op_type) is_not_identical_function;
@@ -1112,7 +1138,7 @@ ZEND_API binary_op_type get_binary_op(int opcode)
 		case ZEND_BOOL_XOR:
 			return (binary_op_type) boolean_xor_function;
 		default:
-			ZEND_ASSERT(0);
+			ZEND_UNREACHABLE();
 			return (binary_op_type) NULL;
 	}
 }

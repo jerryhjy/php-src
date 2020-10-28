@@ -27,10 +27,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "mbfilter.h"
 #include "mbfilter_koi8r.h"
 #include "unicode_table_koi8r.h"
@@ -43,7 +39,7 @@ const mbfl_encoding mbfl_encoding_koi8r = {
 	mbfl_no_encoding_koi8r,
 	"KOI8-R",
 	"KOI8-R",
-	(const char *(*)[])&mbfl_encoding_koi8r_aliases,
+	mbfl_encoding_koi8r_aliases,
 	NULL,
 	MBFL_ENCTYPE_SBCS,
 	&vtbl_koi8r_wchar,
@@ -53,7 +49,6 @@ const mbfl_encoding mbfl_encoding_koi8r = {
 const struct mbfl_identify_vtbl vtbl_identify_koi8r = {
 	mbfl_no_encoding_koi8r,
 	mbfl_filt_ident_common_ctor,
-	mbfl_filt_ident_common_dtor,
 	mbfl_filt_ident_koi8r
 };
 
@@ -61,7 +56,7 @@ const struct mbfl_convert_vtbl vtbl_wchar_koi8r = {
 	mbfl_no_encoding_wchar,
 	mbfl_no_encoding_koi8r,
 	mbfl_filt_conv_common_ctor,
-	mbfl_filt_conv_common_dtor,
+	NULL,
 	mbfl_filt_conv_wchar_koi8r,
 	mbfl_filt_conv_common_flush,
 	NULL,
@@ -71,7 +66,7 @@ const struct mbfl_convert_vtbl vtbl_koi8r_wchar = {
 	mbfl_no_encoding_koi8r,
 	mbfl_no_encoding_wchar,
 	mbfl_filt_conv_common_ctor,
-	mbfl_filt_conv_common_dtor,
+	NULL,
 	mbfl_filt_conv_koi8r_wchar,
 	mbfl_filt_conv_common_flush,
 	NULL,

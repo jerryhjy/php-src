@@ -67,20 +67,8 @@ static ZEND_INI_MH(OnUpdateMemoryConsumption)
 	zend_long memsize = atoi(ZSTR_VAL(new_value));
 	/* sanity check we must use at least 8 MB */
 	if (memsize < 8) {
-		const char *new_new_value = "8";
-		zend_ini_entry *ini_entry;
-
-		memsize = 8;
 		zend_accel_error(ACCEL_LOG_WARNING, "opcache.memory_consumption is set below the required 8MB.\n");
-		zend_accel_error(ACCEL_LOG_WARNING, ACCELERATOR_PRODUCT_NAME " will use the minimal 8MB configuration.\n");
-
-		if ((ini_entry = zend_hash_str_find_ptr(EG(ini_directives),
-					"opcache.memory_consumption",
-					sizeof("opcache.memory_consumption")-1)) == NULL) {
-			return FAILURE;
-		}
-
-		ini_entry->value = zend_string_init_interned(new_new_value, 1, 1);
+		return FAILURE;
 	}
 	if (UNEXPECTED(memsize > ZEND_ULONG_MAX / (1024 * 1024))) {
 		*p = ZEND_ULONG_MAX;
@@ -95,29 +83,13 @@ static ZEND_INI_MH(OnUpdateMaxAcceleratedFiles)
 	zend_long *p = (zend_long *) ZEND_INI_GET_ADDR();
 	zend_long size = atoi(ZSTR_VAL(new_value));
 	/* sanity check we must use a value between MIN_ACCEL_FILES and MAX_ACCEL_FILES */
-
-	if (size < MIN_ACCEL_FILES || size > MAX_ACCEL_FILES) {
-		const char *new_new_value;
-		zend_ini_entry *ini_entry;
-
-		if (size < MIN_ACCEL_FILES) {
-			size = MIN_ACCEL_FILES;
-			new_new_value = TOKENTOSTR(MIN_ACCEL_FILES);
-			zend_accel_error(ACCEL_LOG_WARNING, "opcache.max_accelerated_files is set below the required minimum (%d).\n", MIN_ACCEL_FILES);
-			zend_accel_error(ACCEL_LOG_WARNING, ACCELERATOR_PRODUCT_NAME " will use the minimal configuration.\n");
-		}
-		if (size > MAX_ACCEL_FILES) {
-			size = MAX_ACCEL_FILES;
-			new_new_value = TOKENTOSTR(MAX_ACCEL_FILES);
-			zend_accel_error(ACCEL_LOG_WARNING, "opcache.max_accelerated_files is set above the limit (%d).\n", MAX_ACCEL_FILES);
-			zend_accel_error(ACCEL_LOG_WARNING, ACCELERATOR_PRODUCT_NAME " will use the maximal configuration.\n");
-		}
-		if ((ini_entry = zend_hash_str_find_ptr(EG(ini_directives),
-					"opcache.max_accelerated_files",
-					sizeof("opcache.max_accelerated_files")-1)) == NULL) {
-			return FAILURE;
-		}
-		ini_entry->value = zend_string_init_interned(new_new_value, strlen(new_new_value), 1);
+	if (size < MIN_ACCEL_FILES) {
+		zend_accel_error(ACCEL_LOG_WARNING, "opcache.max_accelerated_files is set below the required minimum (%d).\n", MIN_ACCEL_FILES);
+		return FAILURE;
+	}
+	if (size > MAX_ACCEL_FILES) {
+		zend_accel_error(ACCEL_LOG_WARNING, "opcache.max_accelerated_files is set above the limit (%d).\n", MAX_ACCEL_FILES);
+		return FAILURE;
 	}
 	*p = size;
 	return SUCCESS;
@@ -129,18 +101,8 @@ static ZEND_INI_MH(OnUpdateMaxWastedPercentage)
 	zend_long percentage = atoi(ZSTR_VAL(new_value));
 
 	if (percentage <= 0 || percentage > 50) {
-		const char *new_new_value = "5";
-		zend_ini_entry *ini_entry;
-
-		percentage = 5;
 		zend_accel_error(ACCEL_LOG_WARNING, "opcache.max_wasted_percentage must be set between 1 and 50.\n");
-		zend_accel_error(ACCEL_LOG_WARNING, ACCELERATOR_PRODUCT_NAME " will use 5%%.\n");
-		if ((ini_entry = zend_hash_str_find_ptr(EG(ini_directives),
-					"opcache.max_wasted_percentage",
-					sizeof("opcache.max_wasted_percentage")-1)) == NULL) {
-			return FAILURE;
-		}
-		ini_entry->value = zend_string_init_interned(new_new_value, strlen(new_new_value), 1);
+		return FAILURE;
 	}
 	*p = (double)percentage / 100.0;
 	return SUCCESS;
@@ -227,16 +189,29 @@ static ZEND_INI_MH(OnUpdateCounter)
 	return FAILURE;
 }
 
-static ZEND_INI_MH(OnUpdateUnrollR)
+static ZEND_INI_MH(OnUpdateUnrollC)
 {
 	zend_long val = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
-	if (val > 0 && val < ZEND_JIT_TRACE_MAX_CALL_DEPTH && val < ZEND_JIT_TRACE_MAX_RET_DEPTH) {
+	if (val > 0 && val < ZEND_JIT_TRACE_MAX_CALL_DEPTH) {
 		zend_long *p = (zend_long *) ZEND_INI_GET_ADDR();
 		*p = val;
 		return SUCCESS;
 	}
 	zend_error(E_WARNING, "Invalid \"%s\" setting. Should be between 1 and %d", ZSTR_VAL(entry->name),
-		MIN(ZEND_JIT_TRACE_MAX_CALL_DEPTH, ZEND_JIT_TRACE_MAX_CALL_DEPTH));
+		ZEND_JIT_TRACE_MAX_CALL_DEPTH);
+	return FAILURE;
+}
+
+static ZEND_INI_MH(OnUpdateUnrollR)
+{
+	zend_long val = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+	if (val >= 0 && val < ZEND_JIT_TRACE_MAX_RET_DEPTH) {
+		zend_long *p = (zend_long *) ZEND_INI_GET_ADDR();
+		*p = val;
+		return SUCCESS;
+	}
+	zend_error(E_WARNING, "Invalid \"%s\" setting. Should be between 0 and %d", ZSTR_VAL(entry->name),
+		ZEND_JIT_TRACE_MAX_RET_DEPTH);
 	return FAILURE;
 }
 
@@ -312,21 +287,24 @@ ZEND_INI_BEGIN()
 	STD_PHP_INI_ENTRY("opcache.cache_id"                      , ""    , PHP_INI_SYSTEM, OnUpdateString,           accel_directives.cache_id,               zend_accel_globals, accel_globals)
 #endif
 #ifdef HAVE_JIT
-	STD_PHP_INI_ENTRY("opcache.jit"                           , ZEND_JIT_DEFAULT_OPTIONS,     PHP_INI_ALL,    OnUpdateJit,      options,              zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_buffer_size"               , ZEND_JIT_DEFAULT_BUFFER_SIZE, PHP_INI_SYSTEM, OnUpdateLong,     buffer_size,          zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_debug"                     , "0",                          PHP_INI_ALL,    OnUpdateJitDebug, debug,                zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_bisect_limit"              , "0",                          PHP_INI_ALL,    OnUpdateLong,     bisect_limit,         zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_prof_threshold"            , "0.005",                      PHP_INI_ALL,    OnUpdateReal,     prof_threshold,       zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_max_root_traces"           , "1024",                       PHP_INI_SYSTEM, OnUpdateLong,     max_root_traces,      zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_max_side_traces"           , "128",                        PHP_INI_SYSTEM, OnUpdateLong,     max_side_traces,      zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_hot_loop"                  , "64",                         PHP_INI_SYSTEM, OnUpdateCounter,  hot_loop,             zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_hot_func"                  , "127",                        PHP_INI_SYSTEM, OnUpdateCounter,  hot_func,             zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_hot_return"                , "8",                          PHP_INI_SYSTEM, OnUpdateCounter,  hot_return,           zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_hot_side_exit"             , "8",                          PHP_INI_ALL,    OnUpdateCounter,  hot_side_exit,        zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_blacklist_root_trace"      , "16",                         PHP_INI_ALL,    OnUpdateCounter,  blacklist_root_trace, zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_blacklist_side_trace"      , "8",                          PHP_INI_ALL,    OnUpdateCounter,  blacklist_side_trace, zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_max_recursion_unroll"      , "2",                          PHP_INI_ALL,    OnUpdateUnrollR,  max_recursion_unroll, zend_jit_globals, jit_globals)
-	STD_PHP_INI_ENTRY("opcache.jit_max_loops_unroll"          , "8",                          PHP_INI_ALL,    OnUpdateUnrollL,  max_loops_unroll,     zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit"                           , "tracing",                    PHP_INI_ALL,    OnUpdateJit,      options,               zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_buffer_size"               , ZEND_JIT_DEFAULT_BUFFER_SIZE, PHP_INI_SYSTEM, OnUpdateLong,     buffer_size,           zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_debug"                     , "0",                          PHP_INI_ALL,    OnUpdateJitDebug, debug,                 zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_bisect_limit"              , "0",                          PHP_INI_ALL,    OnUpdateLong,     bisect_limit,          zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_prof_threshold"            , "0.005",                      PHP_INI_ALL,    OnUpdateReal,     prof_threshold,        zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_root_traces"           , "1024",                       PHP_INI_SYSTEM, OnUpdateLong,     max_root_traces,       zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_side_traces"           , "128",                        PHP_INI_SYSTEM, OnUpdateLong,     max_side_traces,       zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_exit_counters"         , "8192",                       PHP_INI_SYSTEM, OnUpdateLong,     max_exit_counters,     zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_hot_loop"                  , "64",                         PHP_INI_SYSTEM, OnUpdateCounter,  hot_loop,              zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_hot_func"                  , "127",                        PHP_INI_SYSTEM, OnUpdateCounter,  hot_func,              zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_hot_return"                , "8",                          PHP_INI_SYSTEM, OnUpdateCounter,  hot_return,            zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_hot_side_exit"             , "8",                          PHP_INI_ALL,    OnUpdateCounter,  hot_side_exit,         zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_blacklist_root_trace"      , "16",                         PHP_INI_ALL,    OnUpdateCounter,  blacklist_root_trace,  zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_blacklist_side_trace"      , "8",                          PHP_INI_ALL,    OnUpdateCounter,  blacklist_side_trace,  zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_loops_unroll"          , "8",                          PHP_INI_ALL,    OnUpdateUnrollL,  max_loops_unroll,      zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_recursive_calls"       , "2",                          PHP_INI_ALL,    OnUpdateUnrollC,  max_recursive_calls,   zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_recursive_returns"     , "2",                          PHP_INI_ALL,    OnUpdateUnrollR,  max_recursive_returns, zend_jit_globals, jit_globals)
+	STD_PHP_INI_ENTRY("opcache.jit_max_polymorphic_calls"     , "2",                          PHP_INI_ALL,    OnUpdateLong,     max_polymorphic_calls, zend_jit_globals, jit_globals)
 #endif
 ZEND_INI_END()
 
@@ -540,8 +518,7 @@ int start_accel_module(void)
 	return zend_startup_module(&accel_module_entry);
 }
 
-/* {{{ proto array accelerator_get_scripts()
-   Get the scripts which are accelerated by ZendAccelerator */
+/* {{{ Get the scripts which are accelerated by ZendAccelerator */
 static int accelerator_get_scripts(zval *return_value)
 {
 	uint32_t i;
@@ -590,8 +567,7 @@ static int accelerator_get_scripts(zval *return_value)
 	return 1;
 }
 
-/* {{{ proto array accelerator_get_status([bool fetch_scripts])
-   Obtain statistics information regarding code acceleration */
+/* {{{ Obtain statistics information regarding code acceleration */
 ZEND_FUNCTION(opcache_get_status)
 {
 	zend_long reqs;
@@ -724,8 +700,7 @@ static int add_blacklist_path(zend_blacklist_entry *p, zval *return_value)
 	return 0;
 }
 
-/* {{{ proto array accelerator_get_configuration()
-   Obtain configuration information */
+/* {{{ Obtain configuration information */
 ZEND_FUNCTION(opcache_get_configuration)
 {
 	zval directives, version, blacklist;
@@ -809,8 +784,11 @@ ZEND_FUNCTION(opcache_get_configuration)
 	add_assoc_long(&directives,   "opcache.jit_hot_loop", JIT_G(hot_loop));
 	add_assoc_long(&directives,   "opcache.jit_hot_return", JIT_G(hot_return));
 	add_assoc_long(&directives,   "opcache.jit_hot_side_exit", JIT_G(hot_side_exit));
+	add_assoc_long(&directives,   "opcache.jit_max_exit_counters", JIT_G(max_exit_counters));
 	add_assoc_long(&directives,   "opcache.jit_max_loops_unroll", JIT_G(max_loops_unroll));
-	add_assoc_long(&directives,   "opcache.jit_max_recursion_unroll", JIT_G(max_recursion_unroll));
+	add_assoc_long(&directives,   "opcache.jit_max_polymorphic_calls", JIT_G(max_polymorphic_calls));
+	add_assoc_long(&directives,   "opcache.jit_max_recursive_calls", JIT_G(max_recursive_calls));
+	add_assoc_long(&directives,   "opcache.jit_max_recursive_returns", JIT_G(max_recursive_returns));
 	add_assoc_long(&directives,   "opcache.jit_max_root_traces", JIT_G(max_root_traces));
 	add_assoc_long(&directives,   "opcache.jit_max_side_traces", JIT_G(max_side_traces));
 	add_assoc_long(&directives,   "opcache.jit_prof_threshold", JIT_G(prof_threshold));
@@ -830,8 +808,7 @@ ZEND_FUNCTION(opcache_get_configuration)
 	add_assoc_zval(return_value, "blacklist", &blacklist);
 }
 
-/* {{{ proto void accelerator_reset()
-   Request that the contents of the opcode cache to be reset */
+/* {{{ Request that the contents of the opcode cache to be reset */
 ZEND_FUNCTION(opcache_reset)
 {
 	if (zend_parse_parameters_none() == FAILURE) {
@@ -857,8 +834,7 @@ ZEND_FUNCTION(opcache_reset)
 	RETURN_TRUE;
 }
 
-/* {{{ proto void opcache_invalidate(string $script [, bool $force = false])
-   Invalidates cached script (in necessary or forced) */
+/* {{{ Invalidates cached script (in necessary or forced) */
 ZEND_FUNCTION(opcache_invalidate)
 {
 	char *script_name;
@@ -930,11 +906,14 @@ ZEND_FUNCTION(opcache_compile_file)
 	zend_destroy_file_handle(&handle);
 }
 
-/* {{{ proto bool opcache_is_script_cached(string $script)
-   Return true if the script is cached in OPCache, false if it is not cached or if OPCache is not running. */
+/* {{{ Return true if the script is cached in OPCache, false if it is not cached or if OPCache is not running. */
 ZEND_FUNCTION(opcache_is_script_cached)
 {
 	zend_string *script_name;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &script_name) == FAILURE) {
+		RETURN_THROWS();
+	}
 
 	if (!validate_api_restriction()) {
 		RETURN_FALSE;
@@ -942,10 +921,6 @@ ZEND_FUNCTION(opcache_is_script_cached)
 
 	if (!ZCG(accelerator_enabled)) {
 		RETURN_FALSE;
-	}
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &script_name) == FAILURE) {
-		RETURN_THROWS();
 	}
 
 	RETURN_BOOL(filename_is_in_cache(script_name));

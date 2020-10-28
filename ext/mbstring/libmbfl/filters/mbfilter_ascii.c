@@ -28,10 +28,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "mbfilter.h"
 #include "mbfilter_ascii.h"
 
@@ -43,7 +39,7 @@ const mbfl_encoding mbfl_encoding_ascii = {
 	mbfl_no_encoding_ascii,
 	"ASCII",
 	"US-ASCII", /* preferred MIME name */
-	(const char *(*)[])&mbfl_encoding_ascii_aliases,
+	mbfl_encoding_ascii_aliases,
 	NULL,
 	MBFL_ENCTYPE_SBCS,
 	&vtbl_ascii_wchar,
@@ -53,7 +49,6 @@ const mbfl_encoding mbfl_encoding_ascii = {
 const struct mbfl_identify_vtbl vtbl_identify_ascii = {
 	mbfl_no_encoding_ascii,
 	mbfl_filt_ident_common_ctor,
-	mbfl_filt_ident_common_dtor,
 	mbfl_filt_ident_ascii
 };
 
@@ -61,7 +56,7 @@ const struct mbfl_convert_vtbl vtbl_ascii_wchar = {
 	mbfl_no_encoding_ascii,
 	mbfl_no_encoding_wchar,
 	mbfl_filt_conv_common_ctor,
-	mbfl_filt_conv_common_dtor,
+	NULL,
 	mbfl_filt_conv_ascii_wchar,
 	mbfl_filt_conv_common_flush,
 	NULL,
@@ -71,7 +66,7 @@ const struct mbfl_convert_vtbl vtbl_wchar_ascii = {
 	mbfl_no_encoding_wchar,
 	mbfl_no_encoding_ascii,
 	mbfl_filt_conv_common_ctor,
-	mbfl_filt_conv_common_dtor,
+	NULL,
 	mbfl_filt_conv_wchar_ascii,
 	mbfl_filt_conv_common_flush,
 	NULL,

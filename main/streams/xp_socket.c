@@ -75,7 +75,8 @@ retry:
 	if (didwrite <= 0) {
 		char *estr;
 		int err = php_socket_errno();
-		if (err == EWOULDBLOCK || err == EAGAIN) {
+
+		if (PHP_IS_TRANSIENT_ERROR(err)) {
 			if (sock->is_blocked) {
 				int retval;
 
@@ -166,7 +167,7 @@ static ssize_t php_sockop_read(php_stream *stream, char *buf, size_t count)
 	err = php_socket_errno();
 
 	if (nr_bytes < 0) {
-		if (err == EAGAIN || err == EWOULDBLOCK) {
+		if (PHP_IS_TRANSIENT_ERROR(err)) {
 			nr_bytes = 0;
 		} else {
 			stream->eof = 1;
@@ -449,12 +450,11 @@ static int php_sockop_set_option(php_stream *stream, int option, int value, void
 #endif
 
 				default:
-					return PHP_STREAM_OPTION_RETURN_NOTIMPL;
+					break;
 			}
-
-		default:
-			return PHP_STREAM_OPTION_RETURN_NOTIMPL;
 	}
+
+	return PHP_STREAM_OPTION_RETURN_NOTIMPL;
 }
 
 static int php_sockop_cast(php_stream *stream, int castas, void **ret)

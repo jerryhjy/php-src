@@ -419,7 +419,7 @@ finish:
 		smart_str_appends(&req_buf, "\r\n");
 		efree(protocol_version);
 	} else {
-		smart_str_appends(&req_buf, " HTTP/1.0\r\n");
+		smart_str_appends(&req_buf, " HTTP/1.1\r\n");
 	}
 
 	if (context && (tmpzval = php_stream_context_get_option(context, "http", "header")) != NULL) {
@@ -842,6 +842,11 @@ finish:
 		php_stream_close(stream);
 		stream = NULL;
 
+		if (transfer_encoding) {
+			php_stream_filter_free(transfer_encoding);
+			transfer_encoding = NULL;
+		}
+
 		if (location[0] != '\0') {
 
 			char new_path[HTTP_HEADER_BLOCK_SIZE];
@@ -957,10 +962,6 @@ out:
 
 		if (transfer_encoding) {
 			php_stream_filter_append(&stream->readfilters, transfer_encoding);
-		}
-	} else {
-		if (transfer_encoding) {
-			php_stream_filter_free(transfer_encoding);
 		}
 	}
 

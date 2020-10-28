@@ -6,11 +6,6 @@ require_once(__DIR__.'/skipif.inc');
 ?>
 --FILE--
 <?php
-/* Prototype  : string imap_body  ( resource $imap_stream  , int $msg_number  [, int $options  ] )
- * Description: Read the message body.
- * Source code: ext/imap/php_imap.c
- */
-
 echo "*** Testing imap_body() : basic functionality ***\n";
 
 require_once(__DIR__.'/imap_include.inc');
@@ -42,5 +37,7 @@ Create a new mailbox for test
 Create a temporary mailbox and add 1 msgs
 .. mailbox '%s' created
 Msg Count in new mailbox: 1
-string(%d) "1: this is a test message, please ignore%a"
-string(%d) "1: this is a test message, please ignore%a"
+string(%d) "1: this is a test message, please ignore
+"
+string(%d) "1: this is a test message, please ignore
+"
